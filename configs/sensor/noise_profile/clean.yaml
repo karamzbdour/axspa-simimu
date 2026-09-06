@@ -1,0 +1,9 @@
+name: "clean"
+accel_noise_std: 0.0
+gyro_noise_std: 0.0
+accel_drift_walk: 0.0
+gyro_drift_walk: 0.0
+simulate_soft_tissue_artifact: false
+sta_frequency_hz: 0.0
+sta_amplitude_m: 0.0
+misalignment_angle_std_deg: 0.0

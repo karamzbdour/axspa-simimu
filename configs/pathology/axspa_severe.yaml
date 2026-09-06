@@ -1,0 +1,18 @@
+name: "axspa_severe"
+condition_vector:
+  cervical_stiffness: 0.85
+  thoracic_stiffness: 0.90
+  lumbar_stiffness: 0.95
+
+rom_limits_deg:
+  lumbar_flexion_max: 15.0      # Normal ~ 60-80 deg
+  lumbar_extension_max: 5.0     # Normal ~ 20-30 deg
+  lumbar_lateral_flexion_max: 8.0 # Normal ~ 30-40 deg
+  cervical_flexion_max: 20.0    # Normal ~ 50-60 deg
+  cervical_extension_max: 15.0   # Normal ~ 60-70 deg
+  cervical_rotation_max: 25.0   # Normal ~ 70-80 deg
+
+loss_weights:
+  rom_limit_penalty: 50.0
+  smoothness_penalty: 5.0
+  ankylosis_rigidity_weight: 40.0

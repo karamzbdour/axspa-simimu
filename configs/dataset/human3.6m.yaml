@@ -1,0 +1,35 @@
+name: "human3.6m"
+source: "huggingface"
+hf_dataset_name: "custom/human3.6m-3d-pose" # or Hugging Face dataset identifier
+hf_config: null
+hf_split_train: "train"
+hf_split_test: "test"
+hf_token: null # Uses HF_TOKEN environment variable by default
+streaming: false # Set true to stream dataset without downloading the entire corpus
+
+keypoint_format: "h36m_32" # 32 keypoints (or 17 primary joints)
+sampling_rate_hz: 50
+seq_length: 60             # Window length (frames)
+stride: 30                 # Window stride
+batch_size: 64             # Batch size optimized for RTX 4050 6GB VRAM
+
+subjects:
+  train: ["S1", "S5", "S6", "S7", "S8"]
+  test: ["S9", "S11"]
+
+actions:
+  - "Directions"
+  - "Discussion"
+  - "Eating"
+  - "Greeting"
+  - "Phoning"
+  - "Posing"
+  - "Purchases"
+  - "Sitting"
+  - "SittingDown"
+  - "Smoking"
+  - "Photo"
+  - "Waiting"
+  - "Walking"
+  - "WalkDog"
+  - "WalkTogether"

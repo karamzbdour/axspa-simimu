@@ -1,0 +1,14 @@
+name: "kinematic_discriminator"
+condition_dim: 3
+pose_dim: 72
+seq_length: 60
+representation: "rotation_6d"
+
+architecture:
+  conv_channels: [64, 128, 256, 512]
+  kernel_size: 5
+  stride: 2
+  activation: "leaky_relu"
+  negative_slope: 0.2
+  use_spectral_norm: true
+  dropout: 0.2

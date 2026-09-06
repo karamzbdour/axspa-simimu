@@ -1,0 +1,9 @@
+name: "realistic_wearable"
+accel_noise_std: 0.15          # m/s^2 Gaussian white noise
+gyro_noise_std: 0.03           # rad/s Gaussian white noise
+accel_drift_walk: 0.002        # Random walk drift
+gyro_drift_walk: 0.0005        # Bias random walk
+simulate_soft_tissue_artifact: true
+sta_frequency_hz: 3.5          # Resonance frequency of wobbling soft tissue
+sta_amplitude_m: 0.008         # 8 mm soft tissue artifact amplitude
+misalignment_angle_std_deg: 2.5 # Mounting misalignment angle noise

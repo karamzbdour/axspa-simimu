@@ -1,0 +1,10 @@
+name: "spatial_temporal_pose_transformer"
+input_imu_channels: 36 # 6 sensors * (3 accel + 3 gyro) or 6 * (3 accel + 3 gyro + 9 rot)
+output_pose_dim: 72   # 24 SMPL joints * 3
+d_model: 256
+nhead: 8
+num_encoder_layers: 6
+dim_feedforward: 1024
+dropout: 0.1
+activation: "gelu"
+max_seq_length: 300

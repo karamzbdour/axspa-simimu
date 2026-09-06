@@ -1,0 +1,26 @@
+name: "gan_wgan_gp"
+epochs: 200
+batch_size: 64 # Tuned for RTX 4050 6GB VRAM
+learning_rate_g: 0.0001
+learning_rate_d: 0.0004
+adam_b1: 0.5
+adam_b2: 0.999
+n_critic: 5 # Train discriminator 5 times per generator step
+
+# Mixed precision training
+amp:
+  enabled: true
+  dtype: "float16"
+
+# Loss Weighting
+loss_weights:
+  adversarial: 1.0
+  gradient_penalty: 10.0
+  kinematic_rom: 20.0
+  jerk_smoothness: 5.0
+  condition_consistency: 10.0
+
+checkpointing:
+  save_every_n_epochs: 10
+  keep_top_k: 3
+  metric: "val_loss"

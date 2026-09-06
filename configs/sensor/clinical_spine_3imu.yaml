@@ -1,0 +1,15 @@
+name: "clinical_spine_3imu_layout"
+num_sensors: 3
+sampling_rate_hz: 60
+include_orientations: true
+
+placements:
+  - name: "cervical_c7"
+    vertex_idx: 1500
+    bone_name: "Spine3"
+  - name: "thoracolumbar_t12"
+    vertex_idx: 3500
+    bone_name: "Spine2"
+  - name: "sacrum_pelvis"
+    vertex_idx: 3000
+    bone_name: "Pelvis"

@@ -1,0 +1,8 @@
+name: "spatial_temporal_graph_neural_network"
+num_nodes: 24 # SMPL kinematic joint nodes
+node_feature_dim: 64
+hidden_dim: 128
+num_layers: 4
+dropout: 0.1
+graph_type: "smpl_kinematic_tree"
+temporal_kernel_size: 9

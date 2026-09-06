@@ -1,0 +1,16 @@
+name: "ntu_rgbd"
+source: "huggingface"
+hf_dataset_name: "custom/ntu-rgbd-120-skeleton"
+hf_config: null
+hf_split_train: "train"
+hf_split_test: "test"
+hf_token: null
+streaming: false
+
+keypoint_format: "ntu_25" # 25 skeletal 3D keypoints
+sampling_rate_hz: 30
+seq_length: 60
+stride: 30
+batch_size: 64 # Tuned for RTX 4050 6GB VRAM
+
+benchmark: "cross_subject" # "cross_subject" or "cross_setup"

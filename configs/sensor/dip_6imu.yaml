@@ -1,0 +1,24 @@
+name: "dip_6imu_layout"
+num_sensors: 6
+sampling_rate_hz: 60
+include_orientations: true
+
+placements:
+  - name: "head"
+    vertex_idx: 412
+    bone_name: "Head"
+  - name: "pelvis"
+    vertex_idx: 3000
+    bone_name: "Pelvis"
+  - name: "left_wrist"
+    vertex_idx: 2100
+    bone_name: "L_Wrist"
+  - name: "right_wrist"
+    vertex_idx: 5500
+    bone_name: "R_Wrist"
+  - name: "left_shank"
+    vertex_idx: 1100
+    bone_name: "L_Ankle"
+  - name: "right_shank"
+    vertex_idx: 4500
+    bone_name: "R_Ankle"

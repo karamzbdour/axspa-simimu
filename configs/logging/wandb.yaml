@@ -1,0 +1,18 @@
+# Weights & Biases Logging Configuration
+use_wandb: true
+project: "axspa-simimu"
+entity: null                   # WandB username or team name (leave null for default account)
+mode: "online"                 # "online", "offline" (sync later), or "disabled"
+group: null                    # Group name for multiple runs (e.g., "gan_ablation_study")
+job_type: "train"              # "train", "eval", "synthetic_export", "benchmark"
+tags: ["rtx4050", "smpl", "axspa", "virtual-imu"]
+notes: "axSpA kinematic pose generation and virtual IMU synthesis experiment"
+
+# Logging intervals
+log_interval_steps: 25         # Log batch losses every N steps
+log_media_interval_epochs: 5   # Log 3D pose plots / IMU waveform figures every N epochs
+save_checkpoint_interval: 10   # Save and log checkpoint artifact to WandB every N epochs
+
+# Artifact Tracking
+log_model_artifacts: true      # Upload model checkpoints as WandB Artifacts
+log_code: true                 # Snapshot git state and code scripts

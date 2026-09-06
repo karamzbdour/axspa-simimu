@@ -1,0 +1,8 @@
+name: "temporal_convolutional_network"
+input_imu_channels: 36
+output_pose_dim: 72
+num_channels: [64, 128, 256, 256, 128]
+kernel_size: 5
+dropout: 0.2
+causal: false
+use_residual: true

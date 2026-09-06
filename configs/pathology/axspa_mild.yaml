@@ -1,0 +1,17 @@
+name: "axspa_mild"
+condition_vector:
+  cervical_stiffness: 0.35
+  thoracic_stiffness: 0.40
+  lumbar_stiffness: 0.50
+
+rom_limits_deg:
+  lumbar_flexion_max: 45.0
+  lumbar_extension_max: 15.0
+  lumbar_lateral_flexion_max: 20.0
+  cervical_flexion_max: 40.0
+  cervical_extension_max: 45.0
+  cervical_rotation_max: 50.0
+
+loss_weights:
+  rom_limit_penalty: 30.0
+  smoothness_penalty: 2.0

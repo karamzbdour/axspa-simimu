@@ -1,0 +1,14 @@
+name: "mpi_inf_3dhp"
+source: "huggingface"
+hf_dataset_name: "custom/mpi-inf-3dhp"
+hf_config: null
+hf_split_train: "train"
+hf_split_test: "test"
+hf_token: null
+streaming: false
+
+keypoint_format: "mpi_17" # 17 3D joints
+sampling_rate_hz: 50
+seq_length: 60
+stride: 30
+batch_size: 64

@@ -1,0 +1,14 @@
+name: "conditional_smpl_gan_generator"
+latent_dim: 128
+condition_dim: 3 # [cervical_stiffness, thoracic_stiffness, lumbar_stiffness] in [0, 1]
+pose_dim: 72    # 24 SMPL joints * 3 axis-angle (or 24*6=144 for 6D representation)
+seq_length: 60  # 1 second at 60 Hz
+representation: "rotation_6d" # "axis_angle", "rotation_6d", or "quaternion"
+
+architecture:
+  hidden_dims: [256, 512, 512, 256]
+  activation: "leaky_relu"
+  dropout: 0.1
+  use_layer_norm: true
+  temporal_model: "gru" # "gru", "lstm", or "transformer"
+  temporal_layers: 2

@@ -1,0 +1,14 @@
+name: "humaneva"
+source: "huggingface"
+hf_dataset_name: "custom/humaneva-i"
+hf_config: null
+hf_split_train: "train"
+hf_split_test: "test"
+hf_token: null
+streaming: false
+
+keypoint_format: "humaneva_15"
+sampling_rate_hz: 60
+seq_length: 60
+stride: 30
+batch_size: 64

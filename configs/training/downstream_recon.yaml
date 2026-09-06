@@ -1,0 +1,21 @@
+name: "downstream_reconstruction"
+epochs: 100
+batch_size: 64 # Tuned for RTX 4050 6GB VRAM
+learning_rate: 0.0005
+weight_decay: 0.0001
+scheduler: "cosine"
+warmup_epochs: 5
+
+amp:
+  enabled: true
+  dtype: "float16"
+
+loss_weights:
+  mpjpe_loss: 1.0
+  velocity_loss: 0.5
+  angular_loss: 0.8
+  basmi_loss: 2.0
+
+early_stopping:
+  patience: 15
+  monitor: "val_mpjpe"

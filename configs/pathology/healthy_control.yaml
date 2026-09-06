@@ -1,0 +1,17 @@
+name: "healthy_control"
+condition_vector:
+  cervical_stiffness: 0.0
+  thoracic_stiffness: 0.0
+  lumbar_stiffness: 0.0
+
+rom_limits_deg:
+  lumbar_flexion_max: 75.0
+  lumbar_extension_max: 30.0
+  lumbar_lateral_flexion_max: 35.0
+  cervical_flexion_max: 60.0
+  cervical_extension_max: 70.0
+  cervical_rotation_max: 80.0
+
+loss_weights:
+  rom_limit_penalty: 10.0
+  smoothness_penalty: 1.0
