@@ -1,4 +1,4 @@
-name: "conditional_smpl_gan_generator"
+name: "smpl_gan_generator"
 latent_dim: 128
 condition_dim: 3 # [cervical_stiffness, thoracic_stiffness, lumbar_stiffness] in [0, 1]
 pose_dim: 72    # 24 SMPL joints * 3 axis-angle (or 24*6=144 for 6D representation)

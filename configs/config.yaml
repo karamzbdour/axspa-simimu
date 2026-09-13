@@ -15,7 +15,7 @@ gpu:
   precision: "16-mixed" # Use mixed precision (AMP fp16) for VRAM efficiency & speed
   benchmark_cudnn: true
   num_workers: 4
-  pin_memory: true
+  pin_memory: truep
 
 seed: 42
 exp_name: "axspa_simimu_experiment"

@@ -1,10 +1,9 @@
 """
 Weights & Biases logging utility and experiment tracking abstraction for axSpA-SimIMU.
 """
-
+import logging
 import os
 from typing import Any, Dict, List, Optional, Union
-import logging
 
 try:
     import wandb

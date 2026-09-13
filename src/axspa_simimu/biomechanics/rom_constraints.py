@@ -3,9 +3,10 @@ Range of Motion (ROM) constraints and clinical limit validation for axSpA.
 """
 
 from typing import Dict, Optional, Tuple
+
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
 
 
 class ROMConstraintManager:
