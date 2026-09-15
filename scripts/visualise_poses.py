@@ -58,6 +58,7 @@ CANONICAL_OFFSETS = torch.tensor([
 ], dtype=torch.float32)
 
 
+def render_skeleton_frame(positions_3d, ax, title="3D Pose", elev=15, azim=135, radius=0.9):
 def render_skeleton_frame(positions_3d, ax, title="3D Pose", elev=15, azim=45, radius=0.9):
     """Draws a single 3D skeleton frame onto a matplotlib 3D axis."""
     ax.cla()
@@ -72,6 +73,7 @@ def render_skeleton_frame(positions_3d, ax, title="3D Pose", elev=15, azim=45, r
             [pts[p1, 0], pts[p2, 0]],
             [pts[p1, 2], pts[p2, 2]], # Swap Y and Z for natural upright rendering
             [pts[p1, 1], pts[p2, 1]],
+            [pts[p1, 2], pts[p2, 2]],
             color="#2b5c8f",
             linewidth=2.5,
             alpha=0.85
@@ -80,6 +82,7 @@ def render_skeleton_frame(positions_3d, ax, title="3D Pose", elev=15, azim=45, r
     # Draw joint nodes
     ax.scatter(
         pts[:, 0], pts[:, 2], pts[:, 1],
+        pts[:, 0], pts[:, 1], pts[:, 2],
         c="#d9534f",
         s=25,
         depthshade=True,
@@ -90,15 +93,20 @@ def render_skeleton_frame(positions_3d, ax, title="3D Pose", elev=15, azim=45, r
     ax.set_xlim([root[0] - radius, root[0] + radius])
     ax.set_ylim([root[2] - radius, root[2] + radius])
     ax.set_zlim([root[1] - radius, root[1] + radius])
+    ax.set_ylim([root[1] - radius, root[1] + radius])
+    ax.set_zlim([root[2] - radius, root[2] + radius])
     
     ax.set_xlabel("X (m)", fontsize=8)
     ax.set_ylabel("Z (m)", fontsize=8)
     ax.set_zlabel("Y (Up, m)", fontsize=8)
+    ax.set_ylabel("Y (m)", fontsize=8)
+    ax.set_zlabel("Z (Up, m)", fontsize=8)
     ax.set_title(title, fontsize=10, fontweight="bold")
     ax.view_init(elev=elev, azim=azim)
 
 
-def create_animation_gif(positions_seq, output_path, fps=30, title="Synthesized Motion"):
+def create_animation_gif(positions_seq, output_path, fps=15, title="Synthesised Motion", elev=15, azim=135):
+def create_animation_gif(positions_seq, output_path, fps=15, title="Synthesised Motion", elev=15, azim=45):
     """
     Renders a sequence of 3D joint positions (SeqLen, 24, 3) into an animated GIF.
     """
@@ -113,8 +121,8 @@ def create_animation_gif(positions_seq, output_path, fps=30, title="Synthesized 
             positions_seq[t],
             ax,
             title=f"{title} (Frame {t+1:02d}/{seq_len})",
-            elev=15,
-            azim=45 + (t * 0.5) # Subtle camera rotation
+            elev=elev,
+            azim=azim + (t * 0.5) # Subtle camera rotation
         )
         fig.tight_layout()
         fig.canvas.draw()
@@ -131,7 +139,8 @@ def create_animation_gif(positions_seq, output_path, fps=30, title="Synthesized 
     print(f"--> Saved 3D animation GIF to: {output_path}")
 
 
-def create_progression_plot(positions_seq, output_path, num_keyframes=6, title="Pose Progression"):
+def create_progression_plot(positions_seq, output_path, num_keyframes=6, title="Pose Progression", elev=15, azim=135):
+def create_progression_plot(positions_seq, output_path, num_keyframes=6, title="Pose Progression", elev=15, azim=45):
     """
     Renders keyframe snapshots across time into a single comparison grid.
     """
@@ -146,8 +155,8 @@ def create_progression_plot(positions_seq, output_path, num_keyframes=6, title="
             positions_seq[idx],
             ax,
             title=f"Frame {idx+1}",
-            elev=15,
-            azim=45
+            elev=elev,
+            azim=azim
         )
         
     fig.suptitle(title, fontsize=14, fontweight="bold", y=0.98)
@@ -165,6 +174,10 @@ def main():
     parser.add_argument("--num_samples", type=int, default=2, help="Number of distinct motion samples to generate")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--compare_pathology", action="store_true", help="Generate side-by-side comparison between Healthy [0,0,0] and Severe axSpA [1,1,1]")
+    parser.add_argument("--fps", type=int, default=15, help="Playback frame rate for the GIF (lower value = slower animation, default: 15)")
+    parser.add_argument("--elev", type=float, default=15.0, help="Camera elevation angle in degrees (default: 15.0)")
+    parser.add_argument("--azim", type=float, default=135.0, help="Camera azimuth angle in degrees (default: 135.0, rotated 90 deg anticlockwise from 45 deg)")
+    parser.add_argument("--azim", type=float, default=45.0, help="Camera azimuth angle in degrees (default: 45.0 isometric view)")
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -217,11 +230,11 @@ def main():
             
             # Export GIF animation
             gif_path = os.path.join(args.output_dir, f"{cond_name}_sample_{s+1:02d}.gif")
-            create_animation_gif(pos_seq, gif_path, fps=30, title=f"{cond_name} (Sample {s+1})")
+            create_animation_gif(pos_seq, gif_path, fps=args.fps, title=f"{cond_name} (Sample {s+1})", elev=args.elev, azim=args.azim)
             
             # Export Static Progression Plot
             png_path = os.path.join(args.output_dir, f"{cond_name}_sample_{s+1:02d}_progression.png")
-            create_progression_plot(pos_seq, png_path, title=f"3D Motion Progression - {cond_name} (Sample {s+1})")
+            create_progression_plot(pos_seq, png_path, title=f"3D Motion Progression - {cond_name} (Sample {s+1})", elev=args.elev, azim=args.azim)
             
             # Export Raw Numpy Arrays for downstream evaluation
             npz_path = os.path.join(args.output_dir, f"{cond_name}_sample_{s+1:02d}_poses.npz")
