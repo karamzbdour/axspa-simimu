@@ -8,7 +8,7 @@ A framework for generative 3D human pose synthesis and virtual inertial sensor (
 
 | Healthy Control | Pathological (axSpA) |
 | :---: | :---: |
-| ![Healthy Control Motion](outputs/visualizations/Healthy_Control_sample_01.gif) | ![Severe axSpA Motion](outputs/visualizations/Severe_axSpA_sample_01.gif)<br>|
+| ![Healthy Control Motion](assets/Healthy_Control_sample_01.gif) | ![Severe axSpA Motion](assets/Severe_axSpA_sample_01.gif) |
 | **Healthy Control (Unconstrained Kinematics)**<br>Natural spinal flexibility and full range of motion. | **Severe axSpA (Spinal Stiffness & Fusion)**<br>Restricted lumbar, thoracic, and cervical mobility. |
 
 ---
