@@ -1,155 +1,152 @@
 # axSpA-SimIMU: Biomechanically Constrained Pose Generation and Virtual Wearable Synthesis
 
-This repository provides an end-to-end framework adapting generative 3D pose architectures for clinical wearable research in axial spondyloarthritis (axSpA).
+A framework for generative 3D human pose synthesis and virtual inertial sensor (IMU) simulation designed for clinical wearable research in axial spondyloarthritis (axSpA).
 
 ---
 
-## 1. Reference
-This project builds upon and extends the baseline 3D human pose augmentation framework introduced in:
+## Generated Motion Visualisations
 
-> **Wang, X., Mi, Y., & Zhang, X. (2024).** 3D human pose data augmentation using Generative Adversarial Networks for robotic-assisted movement quality assessment. *Frontiers in Neurorobotics*, 18, 1371385.  
-> DOI: [10.3389/fnbot.2024.1371385](https://doi.org/10.3389/fnbot.2024.1371385)
-
----
-
-## 2. Research & Implementation Gap
-The base paper presents a GAN architecture focused on unconstrained 3D human pose data augmentation using small sets of robotic-assisted motion capture data, DenseNet feature extraction, and SVM classification evaluated on benchmark datasets (**Human3.6M**, **NTU RGB+D**, **MPI-INF-3DHP**, **HumanEva**). However, several domain-specific limitations prevent its direct use in clinical wearable research:
-
-* **Unconstrained vs. Pathological Kinematics:** The base GAN generates generic human motion from unstructured noise without pathological constraints. It lacks mechanisms to model joint-specific range-of-motion (ROM) restrictions.
-* **No Parametric Biomechanical Grounding:** The original framework operates on generic coordinate representations rather than parametric anatomical mesh models (e.g., SMPL/SMPL-X), preventing direct clinical angle clamping.
-* **Lack of Sensor Simulation:** The original pipeline terminates at 3D joint/image coordinates. It cannot synthesize wearable sensor streams (IMU signals) from the generated motions.
-* **Absence of Downstream Sparse-to-Dense Pipelines:** The base work evaluates pose classification via SVM rather than sparse wearable-to-dense 3D motion reconstruction.
-
-### Addressed in this Repository
-* **Conditioned Pathological Synthesis:** Injection of clinical severity vectors $\alpha \in [0, 1]^3$ and kinematic loss constraints to simulate cervical, thoracic, and lumbar spinal stiffness characteristic of axSpA.
-* **Virtual Sensor Synthesis Layer:** Kinematic derivation of local-frame tri-axial linear acceleration $\mathbf{a}(t)$ and angular velocity $\boldsymbol{\omega}(t)$ from SMPL vertex trajectories, augmented with realistic sensor drift, noise, and soft-tissue artifact (STA) modeling.
-* **Paired Benchmark Dataset Generation:** Construction of synthetic sparse IMU $\rightarrow$ dense 3D pose datasets $(\mathbf{X}_{\text{IMU}}, \mathbf{Y}_{\text{Pose}})$.
-* **Hugging Face Hub Streaming & Loading:** Direct integration with Hugging Face datasets for Human3.6M, NTU RGB+D, MPI-INF-3DHP, and HumanEva without requiring manual local directory wrangling.
-* **Hardware-Accelerated Configuration:** Out-of-the-box configuration prioritized for NVIDIA GeForce RTX 4050 (AMP fp16 mixed precision, memory pinning, cuDNN benchmarking).
-* **Weights & Biases Tracking:** Full experiment tracking, real-time loss and clinical metric curves, 3D visual figures, and model checkpoint artifact logging via WandB.
+| Healthy Control | Pathological (axSpA) |
+| :---: | :---: |
+| ![Healthy Control Motion](outputs/visualizations/Healthy_Control_sample_01.gif) | ![Severe axSpA Motion](outputs/visualizations/Severe_axSpA_sample_01.gif)<br>|
+| **Healthy Control (Unconstrained Kinematics)**<br>Natural spinal flexibility and full range of motion. | **Severe axSpA (Spinal Stiffness & Fusion)**<br>Restricted lumbar, thoracic, and cervical mobility. |
 
 ---
 
-## 3. Modular Configuration System
+## GAN Architecture
 
-The repository uses hierarchical YAML configuration (compatible with Hydra / OmegaConf) under `configs/`:
+The generative model uses a **Wasserstein GAN with Gradient Penalty (WGAN-GP)** conditioned on clinical severity to synthesise temporal sequences of SMPL body poses:
 
-```text
-configs/
-├── config.yaml                      # Root composition config (RTX 4050 GPU & defaults)
-├── logging/                         # Experiment tracking configurations
-│   ├── wandb.yaml                   # Weights & Biases online tracking & artifact versioning
-│   └── disabled.yaml                # Offline / local logging only
-├── dataset/                         # Hugging Face dataset configs (Paper benchmarks)
-│   ├── human3.6m.yaml               # Human3.6M via Hugging Face Hub
-│   ├── ntu_rgbd.yaml                # NTU RGB+D via Hugging Face Hub
-│   ├── mpi_inf_3dhp.yaml            # MPI-INF-3DHP via Hugging Face Hub
-│   └── humaneva.yaml                # HumanEva via Hugging Face Hub
-├── pathology/                       # Clinical stiffness & ROM limits
-│   ├── healthy_control.yaml         # Unconstrained natural ROM
-│   ├── axspa_mild.yaml              # Partial lumbar/thoracic stiffness (alpha = [0.35, 0.40, 0.50])
-│   └── axspa_severe.yaml            # Severe ankylosis & spinal fusion (alpha = [0.85, 0.90, 0.95])
-├── sensor/                          # Virtual wearable layout & noise profiles
-│   ├── dip_6imu.yaml                # DIP 6-IMU layout (head, pelvis, wrists, shanks)
-│   ├── clinical_spine_3imu.yaml     # 3-IMU spinal layout (C7, T12, Sacrum)
-│   └── noise_profile/
-│       ├── clean.yaml               # Ideal physics simulation (zero noise)
-│       └── realistic_wearable.yaml  # White noise + random-walk bias drift + soft-tissue artifacts
-├── model/                           # Architecture specifications
-│   ├── generator_smpl.yaml          # Conditional SMPL GAN generator
-│   ├── discriminator.yaml           # Kinematic discriminator
-│   └── downstream/
-│       ├── transformer.yaml         # Spatial-temporal pose Transformer
-│       ├── tcn.yaml                 # Temporal Convolutional Network
-│       └── gnn.yaml                 # Graph Neural Network
-└── training/                        # Training hyperparameters
-    ├── gan_wgan_gp.yaml             # W-GAN-GP optimization & loss weighting
-    └── downstream_recon.yaml        # Sparse-to-dense reconstruction training
+```
+                  ┌────────────────────────────────────────────────────────┐
+                  │                      Generator                         │
+Latent Vector z ─► [Concat] ─► 2-Layer GRU ─► Multi-Layer Perceptron (MLP)   ──► 6D Pose Sequence
+Condition α    ─► │ (128+3)       (Hidden: 256)   (256→512→512→256→144)    |    (T=60, 24 joints × 6)
+                  └────────────────────────────────────────────────────────┘
+
+                  ┌────────────────────────────────────────────────────────┐
+                  │                Kinematic Discriminator                 │
+Pose Sequence   ─► [Concat] ─► 1D Conv Layers (64→128→256→512) ─► Linear     ──► Scalar Score
+Condition α    ─► │ (144+3)       (Kernel: 5, Stride: 2, Spectral Norm)    |
+                  └────────────────────────────────────────────────────────┘
 ```
 
-### Overriding Configs from Command Line
-You can easily switch datasets, models, pathology profiles, sensor setups, or logging modes:
+* **Generator (`ConditionalSMPLGenerator`)**:
+  * **Input**: Concatenated latent noise $z \sim \mathcal{N}(0, I)^{128}$ and clinical condition vector $\alpha \in [0, 1]^3$.
+  * **Temporal Backbone**: 2-layer Gated Recurrent Unit (GRU) with hidden dimension 256 across $T = 60$ frames (1.0 second @ 60 Hz).
+  * **Projection MLP**: Linear layers `[256 -> 512 -> 512 -> 256 -> 144]` with Layer Normalisation, LeakyReLU ($\alpha = 0.2$), and Dropout ($0.1$).
+  * **Output**: Continuous 6D rotation representation for 24 standard SMPL joints ($24 \times 6 = 144$ dimensions per frame).
+
+* **Discriminator / Critic (`KinematicDiscriminator`)**:
+  * **Input**: Pose sequence concatenated with temporal condition vector ($147$ channels $\times 60$ frames).
+  * **Architecture**: 4-layer 1D Temporal Convolutional Network (channel progression: `64 -> 128 -> 256 -> 512`, kernel size 5, stride 2) with Spectral Normalisation, LeakyReLU ($\alpha = 0.2$), and Dropout ($0.2$).
+  * **Output**: Scalar Wasserstein validity score via a final linear projection.
+
+* **Training & Optimisation**:
+  * **Loss**: WGAN-GP adversarial objective with Gradient Penalty weight $\lambda_{\text{GP}} = 10.0$.
+  * **Optimisers**: Adam ($lr_G = 1\times 10^{-4}$, $lr_D = 4\times 10^{-4}$, $\beta_1 = 0.5, \beta_2 = 0.999$).
+  * **Critic Updates**: $n_{\text{critic}} = 5$ discriminator steps per generator step.
+  * **Precision**: Automatic Mixed Precision (AMP FP16) for GPU acceleration.
+
+---
+
+## Dataset
+
+The framework trains on the **AMASS (Archive of Motion Capture as Surface Shapes)** dataset, using the **CMU MoCap** subset:
+
+* **Format**: SMPL/SMPL-H parameter `.npz` files.
+* **Joint Representation**: 24 standard body joints extracted from the first 72 axis-angle parameters and converted to continuous 6D rotation matrices ($24 \times 6 = 144$ dimensions).
+* **Sampling Rate**: Resampled/subsampled to a uniform **60 Hz**.
+* **Windowing**: Sliced into overlapping sliding windows of **60 frames** (1.0 second duration) with a stride of **30 frames**.
+
+---
+
+## Modular Configuration System
+
+The repository uses **Hydra / OmegaConf** for hierarchical configuration under `configs/`:
+
+* **`configs/config.yaml`**: Primary entry point composing default sub-configs and hardware acceleration settings (CUDA, AMP fp16).
+* **`configs/model/`**: Generator (`generator_smpl.yaml`) and Discriminator (`discriminator.yaml`) architectures.
+* **`configs/dataset/`**: Dataset configurations (`cmu_amass.yaml`, benchmark formats).
+* **`configs/training/`**: Training hyperparameters and loss weightings (`gan_wgan_gp.yaml`).
+* **`configs/pathology/`**: Clinical stiffness and ROM presets (`healthy_control.yaml`, `axspa_mild.yaml`, `axspa_severe.yaml`).
+* **`configs/sensor/`**: Virtual IMU layouts (e.g. 6-IMU DIP, 3-IMU Spine) and noise profiles (`realistic_wearable.yaml`, `clean.yaml`).
+* **`configs/logging/`**: Weights & Biases (`wandb.yaml`) and local/disabled tracking (`disabled.yaml`).
+
+### CLI Overrides
+Any configuration parameter can be overridden dynamically from the command line:
 
 ```bash
-# 1. Train GAN with Weights & Biases logging enabled (default)
-python scripts/train_gan.py dataset=ntu_rgbd pathology=axspa_severe
+# Train with custom epochs and batch size
+python scripts/train_gan.py training.epochs=300 training.batch_size=64
 
-# 2. Run an offline experiment without internet connection
-python scripts/train_gan.py logging.mode=offline
-
-# 3. Disable Weights & Biases logging completely
+# Train with disabled WandB logging (local console only)
 python scripts/train_gan.py logging=disabled
 
-# 4. Synthesize 3-IMU clinical spine dataset with realistic wearable noise
-python scripts/synthesize_imu_dataset.py sensor=clinical_spine_3imu sensor/noise_profile=realistic_wearable
-
-# 5. Run downstream reconstruction using the Transformer architecture
-python scripts/train_downstream.py model/downstream=transformer
+# Specify custom dataset path
+python scripts/train_gan.py dataset.data_dir="data/amass/CMU"
 ```
 
 ---
 
-## 4. Weights & Biases (WandB) Setup
-
-### Authentication
-Log in to your Weights & Biases account:
-```bash
-wandb login
-```
-Alternatively, set the environment variable:
-```bash
-export WANDB_API_KEY="your_api_key_here"  # On Linux/macOS
-$env:WANDB_API_KEY="your_api_key_here"    # On Windows PowerShell
-```
-
-### Project & Entity Configuration
-In [`configs/logging/wandb.yaml`](file:///C:/Users/HP/OneDrive/Documents/GitHub/pose-estimation-enrichment/configs/logging/wandb.yaml), you can configure:
-* `project`: WandB project name (defaults to `"axspa-simimu"`).
-* `entity`: Your personal username or team name.
-* `tags`: Run tags (e.g. `["rtx4050", "human3.6m", "transformer"]`).
-* `log_model_artifacts`: Set `true` to version trained `.pt` checkpoints directly to the WandB registry.
-
----
-
-## 5. Repository Structure
+## Project Directory
 
 ```text
 pose-estimation-enrichment/
-├── configs/                         # Modular configuration hierarchy
+├── configs/                         # Modular Hydra YAML configs
+│   ├── config.yaml                  # Root composition config
+│   ├── dataset/                     # Dataset settings (cmu_amass.yaml)
+│   ├── logging/                     # WandB & console logger configs
+│   ├── model/                       # Generator & discriminator architectures
+│   ├── pathology/                   # Clinical ROM & stiffness definitions
+│   ├── sensor/                      # Virtual IMU layouts & noise profiles
+│   └── training/                    # WGAN-GP training hyperparameters
 ├── src/
-│   └── axspa_simimu/                # Core Python package
-│       ├── biomechanics/            # Clinical ROM constraints, BASMI index & SMPL kinematics
-│       │   ├── rom_constraints.py   # Pathological ROM limits & angular scaling
-│       │   ├── clinical_indices.py  # BASMI scores & spinal stiffness metrics
-│       │   └── smpl_wrapper.py      # Forward kinematics & 6D rotation conversions
-│       ├── sensors/                 # Physics kinematics & sensor simulation
-│       │   ├── virtual_imu.py       # Forward kinematic accel a(t) & gyro omega(t) synthesis
-│       │   ├── noise_models.py      # Gaussian noise, drift & soft-tissue artifacts
-│       │   └── placements.py        # Anatomical sensor placement mappings
-│       ├── models/                  # Neural network model definitions
-│       ├── losses/                  # Kinematic, smoothness & adversarial losses
-│       ├── data/                    # Hugging Face loaders & synthetic dataset handlers
-│       ├── metrics/                 # MPJPE, sensor RMSE & clinical score metrics
-│       └── utils/                   # WandbLogger, experiment logging & visualizers
-├── scripts/                         # CLI execution entrypoints
-├── tests/                           # Unit & integration tests
-├── pyproject.toml                   # Build & packaging configuration
-├── environment.yml                  # Conda environment definition
+│   └── axspa_simimu/                # Core package
+│       ├── biomechanics/            # Forward kinematics, ROM bounds, BASMI metrics
+│       │   ├── clinical_indices.py  # Clinical mobility scores & stiffness indices
+│       │   ├── rom_constraints.py   # Range of Motion limits & scaling functions
+│       │   └── smpl_wrapper.py      # SMPL 24-joint forward kinematics & 6D rotations
+│       ├── data/                    # Dataset loaders & windowing (AMASSDataset)
+│       ├── models/                  # Generator & Discriminator PyTorch modules
+│       ├── sensors/                 # Virtual IMU synthesis, noise, and placement models
+│       └── utils/                   # Logging, WandB integration, and utilities
+├── scripts/
+│   ├── train_gan.py                 # WGAN-GP training entrypoint
+│   └── visualise_poses.py           # 3D skeleton rendering, GIF export & keyframe plots
+├── checkpoints/                     # Saved model checkpoints (.pt)
+├── outputs/                         # Run outputs, logs, and visualisation GIFs
+├── data/                            # Local dataset directory (e.g. data/amass/CMU)
+├── environment.yml                  # Conda environment specification
+├── pyproject.toml                   # Package installation metadata
 └── README.md
 ```
 
 ---
 
-## 6. Installation & Setup
+## Quick Start
 
-### Environment Setup (Conda / Mamba)
+### 1. Installation
+
 ```bash
+# Clone repository and create conda environment
 conda env create -f environment.yml
 conda activate axspa-simimu
+
+# Install axspa_simimu package in editable mode
 pip install -e .
 ```
 
-### Hugging Face Datasets Authentication (Optional for gated benchmarks)
+### 2. Training the GAN
+
 ```bash
-export HF_TOKEN="your_huggingface_token"
+# Train WGAN-GP on CMU AMASS dataset
+python scripts/train_gan.py
+```
+
+### 3. Visualising & Generating Poses
+
+```bash
+# Generate 3D motion GIFs and keyframe progression plots from checkpoint
+python scripts/visualise_poses.py --checkpoint checkpoints/checkpoint_best.pt --compare_pathology
 ```
