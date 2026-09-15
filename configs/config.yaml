@@ -1,10 +1,12 @@
 defaults:
   - _self_
   - model: generator_smpl
+  - model@generator: generator_smpl
+  - model@discriminator: discriminator
   - sensor: dip_6imu
   - sensor/noise_profile: realistic_wearable
   - pathology: axspa_severe
-  - dataset: human3.6m
+  - dataset: cmu_amass
   - training: gan_wgan_gp
   - logging: wandb
 
@@ -14,8 +16,8 @@ gpu:
   name: "NVIDIA GeForce RTX 4050"
   precision: "16-mixed" # Use mixed precision (AMP fp16) for VRAM efficiency & speed
   benchmark_cudnn: true
-  num_workers: 4
-  pin_memory: truep
+  num_workers: 0 # 0 avoids Windows multiprocessing IPC spawn overhead for in-memory tensors
+  pin_memory: true
 
 seed: 42
 exp_name: "axspa_simimu_experiment"

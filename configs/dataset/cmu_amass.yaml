@@ -1,0 +1,15 @@
+name: "cmu_amass"
+source: "local"
+data_dir: "data/amass/CMU" # Path to your extracted CMU .npz files
+
+keypoint_format: "smpl"
+sampling_rate_hz: 60
+seq_length: 60             # Window length (frames)
+stride: 30                 # Window stride
+batch_size: 64             # Batch size optimized for RTX 4050 6GB VRAM
+
+# We can specify subsets if needed, but for now we'll load everything in the directory
+subjects:
+  train: "all"
+  test: "none"
+

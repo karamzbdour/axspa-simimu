@@ -182,3 +182,35 @@ cython_debug/
 
 # Research paper for copyright
 /paper.pdf
+
+# Local Datasets & Artifacts (rooted to avoid ignoring src/axspa_simimu/data)
+/data/
+/checkpoints/
+/outputs/
+/multirun/
+
+# Experiment tracking & Logs
+wandb/
+runs/
+lightning_logs/
+
+# PyTorch / ML Model Weights (if saved outside /checkpoints)
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+
+# Proprietary SMPL / Motion Capture Data
+body_models/
+smpl_models/
+
+# IDE & Editor configs
+.vscode/
+.idea/
+
+# OS-specific files
+Thumbs.db
+[Dd]esktop.ini
+.DS_Store
+
