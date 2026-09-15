@@ -29,7 +29,7 @@ def compute_gradient_penalty(D, real_samples, fake_samples, conditions, device):
         only_inputs=True,
     )[0]
     
-    gradients = gradients.view(gradients.size(0), -1)
+    gradients = gradients.reshape(gradients.size(0), -1)
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
     return gradient_penalty
 
@@ -42,11 +42,13 @@ def main(cfg: DictConfig):
     
     # 2. Hardware configuration
     device = torch.device(cfg.device if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = cfg.gpu.get("benchmark_cudnn", True)
     print(f"Using device: {device}")
     
     # 3. Initialise Models
-    generator = ConditionalSMPLGenerator(cfg.model).to(device)
-    discriminator = KinematicDiscriminator(cfg.model).to(device)
+    generator = ConditionalSMPLGenerator(cfg.generator).to(device)
+    discriminator = KinematicDiscriminator(cfg.discriminator).to(device)
     
     # 4. Optimisers
     train_cfg = cfg.training
@@ -62,22 +64,25 @@ def main(cfg: DictConfig):
     )
     
     # Mixed Precision Scaler for RTX 4050
-    scaler = torch.cuda.amp.GradScaler(enabled=train_cfg.amp.enabled)
+    amp_enabled = train_cfg.amp.enabled and (device.type == "cuda")
+    try:
+        scaler = torch.amp.GradScaler('cuda', enabled=amp_enabled)
+        autocast_context = lambda: torch.amp.autocast('cuda', enabled=amp_enabled)
+    except (AttributeError, TypeError):
+        scaler = torch.cuda.amp.GradScaler(enabled=amp_enabled)
+        autocast_context = lambda: torch.cuda.amp.autocast(enabled=amp_enabled)
+    
+    from axspa_simimu.data.amass_dataset import AMASSDataset
     
     # 5. Dataloader Setup
-    # TODO: Replace this with your actual HuggingFace dataset logic 
-    # (e.g. from src.axspa_simimu.data.h36m_loader)
-    print("Loading datasets...")
-    B, seq_length = train_cfg.batch_size, cfg.model.seq_length
-    feature_dim = 144 if cfg.model.representation == "rotation_6d" else 72
+    print("Loading CMU AMASS datasets...")
     
-    # Dummy data representing healthy benchmark data (c = [0,0,0])
-    dummy_real_data = torch.randn(20 * B, seq_length, feature_dim) 
-    dummy_real_cond = torch.zeros(20 * B, cfg.model.condition_dim) 
+    # Initialize our custom dataset
+    dataset = AMASSDataset(cfg)
     
     dataloader = DataLoader(
-        TensorDataset(dummy_real_data, dummy_real_cond), 
-        batch_size=B, 
+        dataset, 
+        batch_size=cfg.training.batch_size, 
         shuffle=True, 
         num_workers=cfg.gpu.num_workers,
         pin_memory=cfg.gpu.pin_memory
@@ -88,25 +93,36 @@ def main(cfg: DictConfig):
     lambda_gp = train_cfg.loss_weights.gradient_penalty
     lambda_rom = train_cfg.loss_weights.kinematic_rom
     
+    # Checkpointing configuration setup
+    ckpt_cfg = train_cfg.get("checkpointing", {})
+    save_every_n = ckpt_cfg.get("save_every_n_epochs", 10)
+    keep_top_k = ckpt_cfg.get("keep_top_k", 3)
+    
+    ckpt_dir = os.path.join(os.getcwd(), "checkpoints")
+    os.makedirs(ckpt_dir, exist_ok=True)
+    
+    saved_checkpoints = []  # Tracks (g_loss, filepath) for top-k pruning
+    best_g_loss = float("inf")
+    
     print(f"Starting WGAN-GP training loop for {train_cfg.epochs} epochs...")
     
     # 6. Training Loop
     for epoch in range(train_cfg.epochs):
         for i, (real_imgs, real_conds) in enumerate(dataloader):
-            real_imgs = real_imgs.to(device)
-            real_conds = real_conds.to(device)
+            real_imgs = real_imgs.to(device, non_blocking=True)
+            real_conds = real_conds.to(device, non_blocking=True)
             batch_size = real_imgs.size(0)
             
             # Sample random noise and random clinical severity conditions [0, 1]^3 for Fake data
-            z = torch.randn(batch_size, cfg.model.latent_dim, device=device)
-            fake_conds = torch.rand(batch_size, cfg.model.condition_dim, device=device)
+            z = torch.randn(batch_size, cfg.generator.latent_dim, device=device)
+            fake_conds = torch.rand(batch_size, cfg.generator.condition_dim, device=device)
             
             # ==========================================
             #  Train Discriminator (Critic)
             # ==========================================
             opt_D.zero_grad()
             
-            with torch.cuda.amp.autocast(enabled=train_cfg.amp.enabled):
+            with autocast_context():
                 # Evaluate real data
                 real_validity = discriminator(real_imgs, real_conds)
                 
@@ -114,13 +130,15 @@ def main(cfg: DictConfig):
                 fake_imgs = generator(z, fake_conds)
                 fake_validity = discriminator(fake_imgs.detach(), fake_conds)
                 
-                # Compute WGAN-GP gradient penalty
-                gradient_penalty = compute_gradient_penalty(
-                    discriminator, real_imgs.data, fake_imgs.data, fake_conds.data, device
-                )
+                d_adv_loss = -torch.mean(real_validity) + torch.mean(fake_validity)
                 
-                # WGAN Discriminator Loss
-                d_loss = -torch.mean(real_validity) + torch.mean(fake_validity) + lambda_gp * gradient_penalty
+            # Compute WGAN-GP gradient penalty in float32 for autograd graph stability
+            gradient_penalty = compute_gradient_penalty(
+                discriminator, real_imgs.detach(), fake_imgs.detach(), fake_conds.detach(), device
+            )
+            
+            # Total Discriminator Loss
+            d_loss = d_adv_loss + lambda_gp * gradient_penalty
                 
             scaler.scale(d_loss).backward()
             scaler.step(opt_D)
@@ -133,7 +151,7 @@ def main(cfg: DictConfig):
             if i % n_critic == 0:
                 opt_G.zero_grad()
                 
-                with torch.cuda.amp.autocast(enabled=train_cfg.amp.enabled):
+                with autocast_context():
                     # Re-evaluate fake data for generator graph
                     fake_imgs = generator(z, fake_conds)
                     fake_validity = discriminator(fake_imgs, fake_conds)
@@ -166,7 +184,60 @@ def main(cfg: DictConfig):
               f"[D loss: {d_loss.item():.4f}] "
               f"[G loss: {g_loss.item() if 'g_loss' in locals() else 0.0:.4f}]")
         
-        # TODO: Add model checkpointing logic based on cfg.training.checkpointing
+        # Checkpointing logic
+        current_g_loss = g_loss.item() if 'g_loss' in locals() else float("inf")
+        is_epoch_save = (epoch + 1) % save_every_n == 0 or (epoch + 1) == train_cfg.epochs
+        is_best = current_g_loss < best_g_loss
+        
+        checkpoint_state = {
+            "epoch": epoch + 1,
+            "generator_state_dict": generator.state_dict(),
+            "discriminator_state_dict": discriminator.state_dict(),
+            "opt_G_state_dict": opt_G.state_dict(),
+            "opt_D_state_dict": opt_D.state_dict(),
+            "scaler_state_dict": scaler.state_dict(),
+            "d_loss": d_loss.item(),
+            "g_loss": current_g_loss,
+            "config": OmegaConf.to_container(cfg, resolve=True),
+        }
+        
+        # 1. Always save latest checkpoint
+        latest_path = os.path.join(ckpt_dir, "checkpoint_latest.pt")
+        torch.save(checkpoint_state, latest_path)
+        
+        # 2. Save best checkpoint based on generator loss
+        if is_best:
+            best_g_loss = current_g_loss
+            best_path = os.path.join(ckpt_dir, "checkpoint_best.pt")
+            torch.save(checkpoint_state, best_path)
+            print(f"--> Saved new best checkpoint with G loss: {best_g_loss:.4f}")
+            
+        # 3. Periodic saving & top-k pruning
+        if is_epoch_save:
+            epoch_path = os.path.join(ckpt_dir, f"checkpoint_epoch_{epoch+1:04d}.pt")
+            torch.save(checkpoint_state, epoch_path)
+            print(f"--> Saved periodic checkpoint: {epoch_path}")
+            
+            saved_checkpoints.append((current_g_loss, epoch_path))
+            saved_checkpoints.sort(key=lambda x: x[0])  # Sort by loss ascending
+            
+            # Prune worse checkpoints exceeding keep_top_k
+            while len(saved_checkpoints) > keep_top_k:
+                _, path_to_remove = saved_checkpoints.pop(-1)
+                if os.path.exists(path_to_remove) and path_to_remove != epoch_path:
+                    try:
+                        os.remove(path_to_remove)
+                    except OSError:
+                        pass
+                    
+            # 4. Log artifact to WandB if enabled
+            if getattr(logger, "enabled", False):
+                logger.log_artifact(
+                    file_or_dir_path=epoch_path,
+                    artifact_name=f"{cfg.exp_name}-checkpoint",
+                    artifact_type="model",
+                    metadata={"epoch": epoch + 1, "g_loss": current_g_loss, "d_loss": d_loss.item()},
+                )
         
     logger.finish()
     print("Training complete!")
